@@ -1,15 +1,16 @@
 import { ID, OAuthProvider, Query } from "appwrite";
-import { account, database, appwriteConfig } from "~/appwrite/client";
+import { account, tablesDB, appwriteConfig } from "~/appwrite/client";
 import { redirect } from "react-router";
 
 export const getExistingUser = async (id: string) => {
   try {
-    const { documents, total } = await database.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      [Query.equal("accountId", id)],
-    );
-    return total > 0 ? documents[0] : null;
+    const { rows, total } = await tablesDB.listRows({
+      databaseId: appwriteConfig.databaseId,
+      tableId: appwriteConfig.userCollectionId,
+      queries: [Query.equal("accountId", id)],
+    });
+
+    return total > 0 ? rows[0] : null;
   } catch (error) {
     console.error("Error fetching user:", error);
     return null;
@@ -22,22 +23,23 @@ export const storeUserData = async () => {
     if (!user) throw new Error("User not found");
 
     const { providerAccessToken } = (await account.getSession("current")) || {};
+
     const profilePicture = providerAccessToken
       ? await getGooglePicture(providerAccessToken)
       : null;
 
-    const createdUser = await database.createDocument(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      ID.unique(),
-      {
+    const createdUser = await tablesDB.createRow({
+      databaseId: appwriteConfig.databaseId,
+      tableId: appwriteConfig.userCollectionId,
+      rowId: ID.unique(),
+      data: {
         accountId: user.$id,
         email: user.email,
         name: user.name,
         imageUrl: profilePicture,
         joinedAt: new Date().toISOString(),
       },
-    );
+    });
 
     if (!createdUser.$id) redirect("/sign-in");
   } catch (error) {
@@ -49,11 +51,19 @@ const getGooglePicture = async (accessToken: string) => {
   try {
     const response = await fetch(
       "https://people.googleapis.com/v1/people/me?personFields=photos",
-      { headers: { Authorization: `Bearer ${accessToken}` } },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
     );
-    if (!response.ok) throw new Error("Failed to fetch Google profile picture");
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch Google profile picture");
+    }
 
     const { photos } = await response.json();
+
     return photos?.[0]?.url || null;
   } catch (error) {
     console.error("Error fetching Google picture:", error);
@@ -63,11 +73,11 @@ const getGooglePicture = async (accessToken: string) => {
 
 export const loginWithGoogle = async () => {
   try {
-    account.createOAuth2Session(
-      OAuthProvider.Google,
-      `${window.location.origin}/`,
-      `${window.location.origin}/404`,
-    );
+    account.createOAuth2Session({
+      provider: OAuthProvider.Google,
+      success: `${window.location.origin}/`,
+      failure: `${window.location.origin}/404`,
+    });
   } catch (error) {
     console.error("Error during OAuth2 session creation:", error);
   }
@@ -75,7 +85,9 @@ export const loginWithGoogle = async () => {
 
 export const logoutUser = async () => {
   try {
-    await account.deleteSession("current");
+    await account.deleteSession({
+      sessionId: "current",
+    });
   } catch (error) {
     console.error("Error during logout:", error);
   }
@@ -84,18 +96,19 @@ export const logoutUser = async () => {
 export const getUser = async () => {
   try {
     const user = await account.get();
+
     if (!user) return redirect("/sign-in");
 
-    const { documents } = await database.listDocuments(
-      appwriteConfig.databaseId,
-      appwriteConfig.userCollectionId,
-      [
+    const { rows } = await tablesDB.listRows({
+      databaseId: appwriteConfig.databaseId,
+      tableId: appwriteConfig.userCollectionId,
+      queries: [
         Query.equal("accountId", user.$id),
         Query.select(["name", "email", "imageUrl", "joinedAt", "accountId"]),
       ],
-    );
+    });
 
-    return documents.length > 0 ? documents[0] : redirect("/sign-in");
+    return rows.length > 0 ? rows[0] : redirect("/sign-in");
   } catch (error) {
     console.error("Error fetching user:", error);
     return null;

@@ -1,4 +1,4 @@
-import { Sidebar, SidebarComponent } from "@syncfusion/ej2-react-navigations";
+import { SidebarComponent } from "@syncfusion/ej2-react-navigations";
 import { Link } from "react-router";
 import NavItems from "./NavItems";
 
@@ -22,16 +22,19 @@ const MobileSidebar = () => {
         </button>
       </header>
 
-      <SidebarComponent
-        width={270}
-        ref={(Sidebar) => (sidebar = Sidebar)}
-        created={() => sidebar.hide()}
-        closeOnDocumentClick={true}
-        showBackdrop={true}
-        type="over"
-      >
-        <NavItems handleClick={toggleSidebar} />
-      </SidebarComponent>
+      {
+        // @ts-expect-error
+        <SidebarComponent
+          width={270}
+          ref={(el: any) => (sidebar = el)}
+          created={() => sidebar.hide()}
+          closeOnDocumentClick={true}
+          showBackdrop={true}
+          type="over"
+        >
+          <NavItems handleClick={toggleSidebar} />
+        </SidebarComponent>
+      }
     </div>
   );
 };
